@@ -14,42 +14,47 @@ export const seedInitialData = async () => {
 
   // --- 1. デフォルト科目マスタ ---
   const categoriesData = [
-    { name: '食費', type: 'expense', icon: 'food' },
-    { name: '日用品', type: 'expense', icon: 'cart' },
-    { name: '住居費', type: 'expense', icon: 'home' },
-    { name: '給与', type: 'income', icon: 'cash' },
+    { id: 'food', name: '食費', type: 'expense', icon: 'food' },
+    { id: 'daily', name: '日用品', type: 'expense', icon: 'cart' },
+    { id: 'rent', name: '住居費', type: 'expense', icon: 'home' },
+    { id: 'salary', name: '給与', type: 'income', icon: 'cash' },
   ];
 
-  categoriesData.forEach(c => {
-    // IDを自動生成して参照を取得
-    const newRef = doc(collection(db, `users/${user.uid}/categories`));
+  categoriesData.forEach((c, index) => {
+    // 【修正】第3引数にIDを指定することで、ランダム生成を防ぐ
+    const newRef = doc(db, `users/${user.uid}/categories`, c.id);
+    
     const category: Category = {
-      id: newRef.id,
+      id: c.id, // IDも固定値を使う
       name: c.name,
       type: c.type as TransactionType,
       icon: c.icon,
-      parentId: null, // 大カテゴリとして登録
+      parentId: null,
+      order: index 
     };
+    // setは「指定したIDがあれば上書き、なければ作成」という動きをします
     batch.set(newRef, category);
   });
 
   // --- 2. デフォルト口座マスタ ---
   const accountsData = [
-    { name: '現金（財布）', type: 'cash' },
-    { name: 'メイン銀行', type: 'bank' },
-    { name: 'クレジットカード', type: 'credit_card', isCredit: true },
+    { id: 'wallet', name: '現金（財布）', type: 'cash' },
+    { id: 'bank_main', name: 'メイン銀行', type: 'bank' },
+    { id: 'card_main', name: 'クレジットカード', type: 'credit_card', isCredit: true },
   ];
 
   accountsData.forEach(a => {
-    const newRef = doc(collection(db, `users/${user.uid}/accounts`));
+    // 【修正】ここもIDを指定
+    const newRef = doc(db, `users/${user.uid}/accounts`, a.id);
+    
     const account: Account = {
-      id: newRef.id,
+      id: a.id, // 固定ID
       name: a.name,
       type: a.type as any,
-      scope: 'private', // とりあえず個人用として作成
-      balance: 0,       // 初期残高
+      scope: 'private',
+      balance: 0,
       currency: 'JPY',
-      isCredit: a.isCredit || false
+      isCredit: a.isCredit || false 
     };
     batch.set(newRef, account);
   });

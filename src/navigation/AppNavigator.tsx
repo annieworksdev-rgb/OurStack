@@ -3,6 +3,9 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '../services/firebase/config';
+import { MasterDataProvider } from '../store/MasterContext';
+import MainTabNavigator from './MainTabNavigator';
+import InputScreen from '../screens/transactions/InputScreen';
 
 // 画面のインポート
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -29,16 +32,35 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator>
-        {user ? (
-          // ログイン中のみ表示される画面群
-          <Stack.Screen name="Home" component={HomeScreen} />
-        ) : (
-          // 未ログイン時のみ表示される画面
-          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    // 1. データ供給 (Provider) で全体を包む
+    <MasterDataProvider>
+      <NavigationContainer>
+        <Stack.Navigator>
+          {user ? (
+            // ログイン済み：タブ画面 + モーダル画面の構成
+            <Stack.Group>
+              {/* メインのタブ画面 */}
+              <Stack.Screen 
+                name="Main" 
+                component={MainTabNavigator} 
+                options={{ headerShown: false }} 
+              />
+              {/* 入力画面（モーダルとして設定） */}
+              <Stack.Screen 
+                name="InputModal" 
+                component={InputScreen} 
+                options={{ 
+                  presentation: 'modal', // 下から出てくる設定
+                  title: '支出入力'
+                }} 
+              />
+            </Stack.Group>
+          ) : (
+            // 未ログイン
+            <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    </MasterDataProvider>
   );
 }
