@@ -41,6 +41,8 @@ export const seedInitialData = async () => {
     { id: 'wallet', name: '現金（財布）', type: 'cash' },
     { id: 'bank_main', name: 'メイン銀行', type: 'bank' },
     { id: 'card_main', name: 'クレジットカード', type: 'credit_card', isCredit: true },
+    { id: 'pay_app', name: 'PayPay', type: 'e_money' }, 
+    { id: 'suica', name: 'Suica', type: 'e_money' },
   ];
 
   accountsData.forEach(a => {

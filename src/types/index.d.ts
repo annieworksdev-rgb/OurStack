@@ -35,8 +35,9 @@ export type UserRole = 'admin' | 'member';
  * - income: 収入
  * - expense: 支出
  * - transfer: 振替（銀行A -> 財布）
+ * - charge: チャージ（現金/銀行/カード -> 電子マネー）
  */
-export type TransactionType = 'income' | 'expense' | 'transfer';
+export type TransactionType = 'income' | 'expense' | 'transfer' | 'charge';
 
 /**
  * 承認ステータス（子どものお使い、夫の共有財産からの出費申請など）
@@ -126,11 +127,11 @@ export interface Transaction {
   memo?: string;
   
   // 分類
-  categoryId: ID;        // 科目ID
+  categoryId?: ID;       // 科目ID
   categoryName?: string; // 非正規化：表示用（マスタ参照削減）
   
   // 金の動き
-  sourceAccountId: ID;   // 出金元（支出・振替元）
+  sourceAccountId?: ID;  // 出金元（支出・振替元）
   targetAccountId?: ID;  // 入金先（振替先・収入先）
 
   // バケツと権限

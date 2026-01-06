@@ -1,9 +1,10 @@
 // src/services/firebase/config.ts
 import { initializeApp } from 'firebase/app';
-// React Nativeでログイン状態を永続化するために必要なインポート
+// getAuth ではなく initializeAuth と getReactNativePersistence を使います
+// @ts-ignore
 import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
+import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 // Firebaseコンソールから取得したキーをここに貼り付け
 const firebaseConfig = {
@@ -15,19 +16,18 @@ const firebaseConfig = {
   appId: "1:644216018162:web:c2282c072b32a3033a2c6b"
 };
 
-// 1. アプリの初期化
+// アプリの初期化
 const app = initializeApp(firebaseConfig);
 
-// 2. Authの初期化（重要！）
-// Web版と違い、React Nativeでは明示的にAsyncStorageを使って
-// 「永続化（Persistence）」を設定しないと、リロードするたびにログアウトしてしまいます。
+// ★ここがポイント：Authの初期化（React Native用の永続化設定）
+// 通常の getAuth(app) だと警告が出たり、再起動でログアウトしたりします
 const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage)
+  persistence: getReactNativePersistence(ReactNativeAsyncStorage)
 });
 
-// 3. Firestore（DB）の初期化
-const db = getFirestore(app);
+// ★Firestoreの初期化（undefinedを無視する設定）
+const db = initializeFirestore(app, {
+  ignoreUndefinedProperties: true
+});
 
-// シングルトンインスタンスとしてエクスポート
-// C#の Dependency Injection のように、アプリ全体でこのインスタンスを使い回します
-export { auth, db };
+export { db, auth };

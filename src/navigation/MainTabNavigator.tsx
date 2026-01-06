@@ -1,41 +1,46 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text } from 'react-native'; // アイコンの代わり
+import { View, Text, StyleSheet } from 'react-native';
 import HomeScreen from '../screens/home/HomeScreen';
-
-// まだ作っていない画面のプレースホルダー
-const SettingsScreen = () => <View><Text>設定画面</Text></View>;
-// 入力ボタン用のダミー（実際には表示されない）
-const Placeholder = () => null;
+import SettingsScreen from '../screens/settings/SettingsScreen'; // 作った設定画面
 
 const Tab = createBottomTabNavigator();
 
-export default function MainTabNavigator({ navigation }: any) {
+// 将来のためのダミー画面
+const PlaceholderScreen = () => (
+  <View style={styles.centerContainer}>
+    <Text style={styles.text}>将来の機能拡張エリア</Text>
+    <Text style={styles.subText}>（現在は使用しません）</Text>
+  </View>
+);
+
+export default function MainTabNavigator() {
   return (
     <Tab.Navigator screenOptions={{ headerShown: false }}>
-      <Tab.Screen name="HomeTab" component={HomeScreen} options={{ title: 'ホーム' }} />
-      
-      {/* ここがポイント：
-        真ん中の「入力」タブを押した時、通常の画面遷移をキャンセル(preventDefault)し、
-        親のStack Navigatorにある 'InputModal' へ遷移させる
-      */}
       <Tab.Screen 
-        name="InputButton" 
-        component={Placeholder} 
-        options={{
-          title: '入力',
-          tabBarLabelStyle: { fontWeight: 'bold', fontSize: 14 },
-          tabBarIconStyle: { display: 'none' }, // アイコン省略（後で設定）
-        }}
-        listeners={{
-          tabPress: (e) => {
-            e.preventDefault(); // タブ切り替えを阻止
-            navigation.navigate('InputModal'); // モーダルを開く
-          },
-        }}
+        name="HomeTab" 
+        component={HomeScreen} 
+        options={{ title: 'ホーム' }} 
       />
       
-      <Tab.Screen name="SettingsTab" component={SettingsScreen} options={{ title: '設定' }} />
+      {/* ダミーとして残しておくタブ */}
+      <Tab.Screen 
+        name="DummyTab" 
+        component={PlaceholderScreen} 
+        options={{ title: '分析(仮)' }} 
+      />
+      
+      <Tab.Screen 
+        name="SettingsTab" 
+        component={SettingsScreen} 
+        options={{ title: '設定' }} 
+      />
     </Tab.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' },
+  text: { fontSize: 18, fontWeight: 'bold', color: '#aaa' },
+  subText: { fontSize: 14, color: '#aaa', marginTop: 5 }
+});

@@ -1,46 +1,42 @@
 import React from 'react';
-import { View, Text, Button, StyleSheet, Alert, FlatList, TouchableOpacity } from 'react-native';
-import { logout } from '../../services/firebase/auth';
-import { seedInitialData } from '../../services/firebase/seed';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native'; // 画面遷移用
 import { auth } from '../../services/firebase/config';
-import { useRecentTransactions } from '../../hooks/useTransactions'; // 作ったフック
-import { useMasterData } from '../../store/MasterContext'; // マスタデータ
+import { useRecentTransactions } from '../../hooks/useTransactions';
+import { useMasterData } from '../../store/MasterContext';
+import { useThemeColor } from '../../hooks/useThemeColor';
 
 export default function HomeScreen() {
+  const navigation = useNavigation<any>(); // 型エラー回避のためany
   const user = auth.currentUser;
   
-  // 1. 直近データの取得（ViewModelからのデータバインディング）
-  const { transactions, loading } = useRecentTransactions(10); // 10件取得
-  
-  // 2. マスタデータの取得（ID解決用）
+  const colors = useThemeColor();
+
+  const { transactions } = useRecentTransactions(20);
   const { categories, accounts } = useMasterData();
 
-  // ヘルパー：IDからカテゴリ名を取得
-  const getCategoryName = (id: string) => {
-    return categories.find(c => c.id === id)?.name || '未分類';
-  };
+  const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || '未分類';
+  const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || '不明';
 
-  // ヘルパー：IDから口座名を取得
-  const getAccountName = (id: string) => {
-    return accounts.find(a => a.id === id)?.name || '不明';
-  };
-
-  // リストの1行分のレンダリング定義 (ItemTemplate)
   const renderItem = ({ item }: { item: any }) => (
-    <View style={styles.card}>
+    // ★ styleに配列を使い、[基本スタイル, { 上書きしたい色 }] の形で適用します
+    <View style={[styles.card, { backgroundColor: colors.card }]}>
       <View style={styles.row}>
-        <Text style={styles.dateText}>
-          {item.date.toLocaleDateString()}
-        </Text>
-        <Text style={styles.categoryBadge}>
+        <Text style={styles.dateText}>{item.date.toLocaleDateString()}</Text>
+        {/* 文字色もテーマに追従させる */}
+        <Text style={[styles.categoryBadge, { color: colors.textSub }]}>
           {getCategoryName(item.categoryId)}
         </Text>
       </View>
       <View style={styles.row}>
-        <Text style={styles.memoText}>{item.memo || getAccountName(item.sourceAccountId)}</Text>
+        {/* メモの色 */}
+        <Text style={[styles.memoText, { color: colors.text }]}>
+          {item.memo || getAccountName(item.sourceAccountId)}
+        </Text>
+        {/* 収支の色も定義ファイルから取得 */}
         <Text style={[
           styles.amountText, 
-          { color: item.type === 'income' ? 'blue' : 'red' }
+          { color: item.type === 'income' ? colors.income : colors.expense }
         ]}>
           ¥{item.amount.toLocaleString()}
         </Text>
@@ -48,63 +44,77 @@ export default function HomeScreen() {
     </View>
   );
 
-  // Seed実行関数
-  const handleSeed = async () => {
-    try {
-      await seedInitialData();
-      Alert.alert("成功", "マスタデータを初期化・更新しました");
-    } catch (e: any) {
-      Alert.alert("エラー", e.message);
-    }
-  };
-
   return (
-    <View style={styles.container}>
-      {/* ヘッダー部分 */}
-      <View style={styles.header}>
-        <Text style={styles.title}>最近の動き</Text>
-        <Button title="ログアウト" onPress={logout} color="gray" />
+    // ★ 全体の背景色
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { 
+          backgroundColor: colors.card, 
+          borderBottomColor: colors.border 
+        }]}>
+        <Text style={[styles.title, { color: colors.text }]}>OurStack</Text>
+        <Text style={styles.userText}>{user?.email}</Text>
       </View>
 
-      {/* リスト表示部分 */}
       <FlatList
         data={transactions}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<Text style={styles.emptyText}>データがありません</Text>}
+        ListEmptyComponent={
+          <Text style={[styles.emptyText, { color: colors.textSub }]}>
+            データがありません
+          </Text>
+        }
       />
 
-      {/* デバッグ用エリア */}
-      <View style={styles.debugArea}>
-        <Text style={{fontSize:10, color:'#999'}}>開発用メニュー</Text>
-        <Button title="マスタデータ初期化(Seed)" onPress={handleSeed} color="#f194ff" />
+      <View style={styles.fabContainer}>
+        {/* ボタンの色は tint (アクセントカラー) を使用 */}
+        <TouchableOpacity 
+          style={[styles.fabButton, { backgroundColor: colors.text }]} // ここは反転色のままでもかっこいいかも
+          onPress={() => navigation.navigate('InputModal')}
+        >
+          {/* ボタン内の文字色はカード背景色（白/黒）を使うと見やすい */}
+          <Text style={[styles.fabText, { color: colors.card }]}>
+            ＋ 記帳する
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1 }, 
   header: { 
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: 20, paddingTop: 60, backgroundColor: '#fff', 
-    borderBottomWidth: 1, borderBottomColor: '#ddd' 
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
+    padding: 20, paddingTop: 60, 
+    borderBottomWidth: 1
   },
-  title: { fontSize: 20, fontWeight: 'bold' },
+  title: { fontSize: 24, fontWeight: 'bold' },
+  userText: { fontSize: 12, marginBottom: 5 },
   
-  listContent: { padding: 15 },
+  listContent: { padding: 15, paddingBottom: 100 }, // ボタンと被らないよう余白確保
   card: {
-    backgroundColor: '#fff', padding: 15, marginBottom: 10, borderRadius: 8,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    padding: 15, marginBottom: 10, borderRadius: 8,
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1, shadowRadius: 2, elevation: 2
   },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
-  dateText: { color: '#888', fontSize: 12 },
-  categoryBadge: { fontSize: 12, fontWeight: 'bold', color: '#555' },
-  memoText: { fontSize: 14, color: '#333' },
+  dateText: { fontSize: 12 },
+  categoryBadge: { fontSize: 12, fontWeight: 'bold' },
+  memoText: { fontSize: 14 },
   amountText: { fontSize: 16, fontWeight: 'bold' },
-  
-  emptyText: { textAlign: 'center', marginTop: 50, color: '#999' },
-  debugArea: { padding: 20, borderTopWidth: 1, borderColor: '#ddd' }
+  emptyText: { textAlign: 'center', marginTop: 50 },
+
+  // フローティングボタンのスタイル
+  fabContainer: {
+    position: 'absolute', bottom: 30, left: 0, right: 0, 
+    alignItems: 'center', justifyContent: 'center'
+  },
+  fabButton: {
+    paddingVertical: 15, paddingHorizontal: 40,
+    borderRadius: 30, elevation: 5,
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3
+  },
+  fabText: { fontSize: 16, fontWeight: 'bold' }
 });
