@@ -1,5 +1,5 @@
 // src/services/firebase/config.ts
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 // getAuth ではなく initializeAuth と getReactNativePersistence を使います
 // @ts-ignore
 import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
@@ -17,7 +17,12 @@ const firebaseConfig = {
 };
 
 // アプリの初期化
-const app = initializeApp(firebaseConfig);
+let app;
+if (getApps().length === 0) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApp(); // 既存のアプリを取得
+}
 
 // ★ここがポイント：Authの初期化（React Native用の永続化設定）
 // 通常の getAuth(app) だと警告が出たり、再起動でログアウトしたりします

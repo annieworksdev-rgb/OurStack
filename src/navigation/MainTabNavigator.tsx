@@ -1,8 +1,11 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
 import { View, Text, StyleSheet } from 'react-native';
 import HomeScreen from '../screens/home/HomeScreen';
-import SettingsScreen from '../screens/settings/SettingsScreen'; // 作った設定画面
+import SettingsScreen from '../screens/settings/SettingsScreen';
+import AccountsScreen from '../screens/accounts/AccountsScreen';
+import { useThemeColor } from '../hooks/useThemeColor';
 
 const Tab = createBottomTabNavigator();
 
@@ -15,21 +18,49 @@ const PlaceholderScreen = () => (
 );
 
 export default function MainTabNavigator() {
+  const colors = useThemeColor();
+
   return (
-    <Tab.Navigator screenOptions={{ headerShown: false }}>
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        // アクティブなタブの色（テーマ連動）
+        tabBarActiveTintColor: colors.tint,
+        // 非アクティブなタブの色
+        tabBarInactiveTintColor: colors.tabIconDefault,
+        // 背景色もテーマ連動
+        tabBarStyle: {
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
+        },
+        // ★ここがアイコン設定の肝
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap = 'home';
+
+          if (route.name === 'HomeTab') {
+            // フォーカス時は塗りつぶし、非フォーカス時はアウトライン
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'AccountsTab') {
+            iconName = focused ? 'wallet' : 'wallet-outline';
+          } else if (route.name === 'SettingsTab') {
+            iconName = focused ? 'settings' : 'settings-outline';
+          }
+
+          // 指定された色（Active/Inactive）とサイズでアイコンを返す
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+      })}
+    >
       <Tab.Screen 
         name="HomeTab" 
         component={HomeScreen} 
         options={{ title: 'ホーム' }} 
       />
-      
-      {/* ダミーとして残しておくタブ */}
       <Tab.Screen 
-        name="DummyTab" 
-        component={PlaceholderScreen} 
-        options={{ title: '分析(仮)' }} 
+        name="AccountsTab" 
+        component={AccountsScreen} 
+        options={{ title: '資産' }} 
       />
-      
       <Tab.Screen 
         name="SettingsTab" 
         component={SettingsScreen} 

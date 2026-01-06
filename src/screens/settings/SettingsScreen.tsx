@@ -1,12 +1,13 @@
-import React from 'react';
-import { View, Text, Button, StyleSheet, Alert, ScrollView } from 'react-native';
-import { seedInitialData } from '../../services/firebase/seed';
+import React, { useState } from 'react';
+import { View, Text, Button, StyleSheet, Alert, ScrollView, ActivityIndicator } from 'react-native';
+import { seedInitialData, addDummyTransactions } from '../../services/firebase/seed';
 import { logout } from '../../services/firebase/auth';
 import { useThemeColor } from '../../hooks/useThemeColor'; // ★追加
 
 export default function SettingsScreen() {
   // ★テーマカラーを取得
   const colors = useThemeColor();
+  const [loading, setLoading] = useState(false);
 
   const handleSeed = async () => {
     Alert.alert(
@@ -30,6 +31,31 @@ export default function SettingsScreen() {
     );
   };
 
+  // ダミーデータ生成ハンドラ
+  const handleDummyData = async () => {
+    Alert.alert(
+      "ダミーデータ生成",
+      "過去3ヶ月分の支出データを50件ランダムに生成します。\n口座残高も更新されます。",
+      [
+        { text: "キャンセル", style: "cancel" },
+        { 
+          text: "生成する", 
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await addDummyTransactions();
+              Alert.alert("完了", "データを生成しました。\nホーム画面をリフレッシュして確認してください。");
+            } catch (e: any) {
+              Alert.alert("エラー", e.message);
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+  
   return (
     // ★ styleを配列にして、動的な背景色を上書き適用
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -43,11 +69,27 @@ export default function SettingsScreen() {
       {/* 開発用メニューセクション */}
       <View style={[styles.section, { backgroundColor: colors.card }]}>
         <Text style={[styles.header, { color: colors.text }]}>開発用メニュー</Text>
-        <Text style={[styles.description, { color: colors.textSub }]}>
-          科目や口座のマスタデータがおかしくなった場合に実行してください。
-        </Text>
-        {/* ボタンの色もテーマのアクセントカラーに合わせる */}
-        <Button title="マスタデータ初期化 (Seed)" onPress={handleSeed} color={colors.tint} />
+        
+        {/* 既存のマスタ初期化ボタン */}
+        <View style={{ marginBottom: 20 }}>
+          <Text style={[styles.description, { color: colors.textSub }]}>
+            マスタデータをリセットします。
+          </Text>
+          <Button title="マスタデータ初期化 (Seed)" onPress={handleSeed} color={colors.tint} />
+        </View>
+
+        {/* ★追加: ダミーデータ生成ボタン */}
+        <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 20 }}>
+          <Text style={[styles.description, { color: colors.textSub }]}>
+            グラフ確認用のダミー支出データを50件追加します。
+          </Text>
+          {loading ? (
+            <ActivityIndicator />
+          ) : (
+            <Button title="ダミーデータ生成 (Random)" onPress={handleDummyData} color={colors.tint} />
+          )}
+        </View>
+
       </View>
     </ScrollView>
   );

@@ -18,31 +18,58 @@ export default function HomeScreen() {
   const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || '未分類';
   const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || '不明';
 
-  const renderItem = ({ item }: { item: any }) => (
-    // ★ styleに配列を使い、[基本スタイル, { 上書きしたい色 }] の形で適用します
-    <View style={[styles.card, { backgroundColor: colors.card }]}>
-      <View style={styles.row}>
-        <Text style={styles.dateText}>{item.date.toLocaleDateString()}</Text>
-        {/* 文字色もテーマに追従させる */}
-        <Text style={[styles.categoryBadge, { color: colors.textSub }]}>
-          {getCategoryName(item.categoryId)}
-        </Text>
-      </View>
-      <View style={styles.row}>
-        {/* メモの色 */}
-        <Text style={[styles.memoText, { color: colors.text }]}>
-          {item.memo || getAccountName(item.sourceAccountId)}
-        </Text>
-        {/* 収支の色も定義ファイルから取得 */}
-        <Text style={[
-          styles.amountText, 
-          { color: item.type === 'income' ? colors.income : colors.expense }
-        ]}>
-          ¥{item.amount.toLocaleString()}
-        </Text>
-      </View>
-    </View>
-  );
+  const renderItem = ({ item }: { item: any }) => {
+    // ★追加ロジック：表示すべき口座名を決定する
+    // メモがあればメモ優先、なければ口座名を表示
+    let displayMainText = item.memo;
+    
+    if (!displayMainText) {
+      if (item.type === 'income') {
+        // 収入なら「入金先」を表示
+        displayMainText = getAccountName(item.targetAccountId);
+      } else if (item.type === 'transfer' || item.type === 'charge') {
+        // 振替・チャージなら「元→先」と表示すると分かりやすい
+        const from = getAccountName(item.sourceAccountId);
+        const to = getAccountName(item.targetAccountId);
+        displayMainText = `${from} → ${to}`;
+      } else {
+        // 支出なら「出金元」を表示
+        displayMainText = getAccountName(item.sourceAccountId);
+      }
+    }
+    return (
+      <TouchableOpacity 
+        activeOpacity={0.7}
+        onPress={() => navigation.navigate('InputModal', { 
+        transaction: {
+          ...item,
+          date: item.date.toISOString()
+        }
+      })}
+      >
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
+          <View style={styles.row}>
+            <Text style={styles.dateText}>{item.date.toLocaleDateString()}</Text>
+            <Text style={[styles.categoryBadge, { color: colors.textSub }]}>
+              {getCategoryName(item.categoryId)}
+            </Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={[styles.memoText, { color: colors.text }]}>
+              {displayMainText}
+            </Text>
+            
+            <Text style={[
+              styles.amountText, 
+              { color: item.type === 'income' ? colors.income : colors.expense }
+            ]}>
+              ¥{item.amount.toLocaleString()}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     // ★ 全体の背景色
