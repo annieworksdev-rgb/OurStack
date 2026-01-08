@@ -1,148 +1,126 @@
-import { collection, doc, writeBatch, increment, Timestamp } from 'firebase/firestore';
+import { 
+  collection, 
+  doc, 
+  writeBatch, 
+  getDocs, 
+  serverTimestamp,
+  increment
+} from 'firebase/firestore';
 import { db, auth } from './config';
-import { Category, Account, Scope, Transaction, TransactionType } from '../../types';
+import { Transaction } from '../../types';
 
 /**
- * 初期データを投入する関数（バッチ処理）
+ * スマートなデモデータ生成
+ * 1. 既存の科目・口座があればそれを使います。
+ * 2. なければデフォルトを作成します。
+ * 3. それらのIDを使って、整合性の取れた明細を作成します。
  */
-export const seedInitialData = async () => {
-  const user = auth.currentUser;
-  if (!user) throw new Error("ログインしていません");
-
-  const batch = writeBatch(db); // C#の TransactionScope のようなもの
-  const now = new Date();
-
-  // --- 1. デフォルト科目マスタ ---
-  const categoriesData = [
-    { id: 'food', name: '食費', type: 'expense', icon: 'food' },
-    { id: 'daily', name: '日用品', type: 'expense', icon: 'cart' },
-    { id: 'rent', name: '住居費', type: 'expense', icon: 'home' },
-    { id: 'salary', name: '給与', type: 'income', icon: 'cash' },
-  ];
-
-  categoriesData.forEach((c, index) => {
-    // 【修正】第3引数にIDを指定することで、ランダム生成を防ぐ
-    const newRef = doc(db, `users/${user.uid}/categories`, c.id);
-    
-    const category: Category = {
-      id: c.id, // IDも固定値を使う
-      name: c.name,
-      type: c.type as TransactionType,
-      icon: c.icon,
-      parentId: null,
-      order: index 
-    };
-    // setは「指定したIDがあれば上書き、なければ作成」という動きをします
-    batch.set(newRef, category);
-  });
-
-  // --- 2. デフォルト口座マスタ ---
-  const accountsData = [
-    { id: 'wallet', name: '現金（財布）', type: 'cash' },
-    { id: 'bank_main', name: 'メイン銀行', type: 'bank' },
-    { id: 'card_main', name: 'クレジットカード', type: 'credit_card', isCredit: true },
-    { id: 'pay_app', name: 'PayPay', type: 'e_money' }, 
-    { id: 'suica', name: 'Suica', type: 'e_money' },
-  ];
-
-  accountsData.forEach(a => {
-    // 【修正】ここもIDを指定
-    const newRef = doc(db, `users/${user.uid}/accounts`, a.id);
-    
-    const account: Account = {
-      id: a.id, // 固定ID
-      name: a.name,
-      type: a.type as any,
-      scope: 'private',
-      balance: 0,
-      currency: 'JPY',
-      isCredit: a.isCredit || false 
-    };
-    batch.set(newRef, account);
-  });
-
-  // --- コミット（一括保存） ---
-  await batch.commit();
-  console.log("Seeding completed!");
-};
-
-/**
- * 分析テスト用：ダミー明細データの大量投入
- * （口座残高も整合性を保って更新します）
- */
-export const addDummyTransactions = async () => {
+export const regenerateDemoData = async () => {
   const user = auth.currentUser;
   if (!user) throw new Error("ユーザーが見つかりません");
 
   const batch = writeBatch(db);
-  const BATCH_COUNT = 50; // 生成する件数
 
-  // 1. ランダム生成用のネタ帳 (Seedで登録したIDと一致させる)
-  const categoriesList = [
-    { id: 'food', name: '食費' },
-    { id: 'daily', name: '日用品' },
-    { id: 'rent', name: '住居費' },
-    { id: 'entertainment', name: '交際費' },
-    { id: 'transport', name: '交通費' },
-  ];
-  const accounts = ['wallet', 'bank_main', 'card_main', 'pay_app'];
+  // ----------------------------------------------------
+  // 1. 既存データの確認 & 準備
+  // ----------------------------------------------------
   
-  // 口座ごとの残高変動を集計する辞書 (C#の Dictionary<string, int>)
-  const balanceChanges: { [key: string]: number } = {};
-  const addBalance = (id: string, amount: number) => {
-    balanceChanges[id] = (balanceChanges[id] || 0) + amount;
-  };
+  // 科目をDBから取得
+  const catSnapshot = await getDocs(collection(db, `users/${user.uid}/categories`));
+  let categories: { id: string, name: string }[] = [];
 
-  // 2. ループでデータ生成
-  for (let i = 0; i < BATCH_COUNT; i++) {
-    const newRef = doc(collection(db, `users/${user.uid}/transactions`));
+  if (!catSnapshot.empty) {
+    // 既存があれば使う
+    categories = catSnapshot.docs.map(d => ({ id: d.id, name: d.data().name }));
+  } else {
+    // なければデフォルトを作成してバッチに登録
+    const defaultCats = [
+      { name: '食費', icon: 'fast-food', type: 'expense', sortOrder: 1 },
+      { name: '日用品', icon: 'cart', type: 'expense', sortOrder: 2 },
+      { name: '交通費', icon: 'train', type: 'expense', sortOrder: 3 },
+      { name: '給料', icon: 'cash', type: 'income', sortOrder: 1 },
+    ];
+    categories = defaultCats.map(c => {
+      const ref = doc(collection(db, `users/${user.uid}/categories`));
+      batch.set(ref, { ...c, createdAt: serverTimestamp() });
+      return { id: ref.id, name: c.name };
+    });
+  }
+
+  // 口座をDBから取得
+  const accSnapshot = await getDocs(collection(db, `users/${user.uid}/accounts`));
+  let accounts: { id: string, name: string }[] = [];
+
+  if (!accSnapshot.empty) {
+    // 既存があれば使う
+    accounts = accSnapshot.docs.map(d => ({ id: d.id, name: d.data().name }));
+  } else {
+    // なければデフォルトを作成
+    const defaultAccs = [
+      { name: '財布', type: 'cash', balance: 0 },
+      { name: '銀行', type: 'bank', balance: 0 },
+    ];
+    accounts = defaultAccs.map(a => {
+      const ref = doc(collection(db, `users/${user.uid}/accounts`));
+      batch.set(ref, { ...a, createdAt: serverTimestamp() });
+      return { id: ref.id, name: a.name };
+    });
+  }
+
+  // ----------------------------------------------------
+  // 2. 明細データの作成
+  // ----------------------------------------------------
+  const TRANSACTION_COUNT = 50;
+  const balanceChanges: { [key: string]: number } = {}; // 残高計算用
+
+  for (let i = 0; i < TRANSACTION_COUNT; i++) {
+    const newTransRef = doc(collection(db, `users/${user.uid}/transactions`));
     
-    // ランダムな日付（過去90日以内）
+    // 過去3ヶ月以内のランダム日付
     const daysAgo = Math.floor(Math.random() * 90);
     const date = new Date();
     date.setDate(date.getDate() - daysAgo);
 
-    // ランダムな金額（100円〜5000円）
-    const amount = (Math.floor(Math.random() * 50) + 1) * 100;
+    const amount = (Math.floor(Math.random() * 50) + 1) * 100; // 100~5000円
 
-    // ランダムな科目と口座
-    const targetCat = categoriesList[Math.floor(Math.random() * categoriesList.length)];
-    const accId = accounts[Math.floor(Math.random() * accounts.length)];
+    // ★ポイント：既存（または新規作成した）リストからランダム選択
+    const targetCat = categories[Math.floor(Math.random() * categories.length)];
+    const targetAcc = accounts[Math.floor(Math.random() * accounts.length)];
 
-    // 今回は簡単のため「支出」のみ生成します（分析グラフ映えするため）
+    // 簡易的に全部「支出」にします（科目が給料だろうとお構いなしですが、テスト用なので許容）
     const transaction: Partial<Transaction> = {
-      id: newRef.id,
+      id: newTransRef.id,
       type: 'expense',
       date: date as any,
       amount: amount,
-      memo: `テストデータ ${i + 1}`,
+      memo: `自動生成 ${i + 1}`,
       categoryId: targetCat.id,
       categoryName: targetCat.name,
-      sourceAccountId: accId,
-      targetAccountId: undefined,
+      sourceAccountId: targetAcc.id,
       createdBy: user.uid,
-      createdAt: new Date() as any,
+      createdAt: serverTimestamp() as any,
     };
 
-    // 明細を追加
-    batch.set(newRef, transaction);
+    batch.set(newTransRef, transaction);
 
-    // 残高集計（出金元を減らす）
-    addBalance(accId, -amount);
+    // 残高の変動を集計
+    balanceChanges[targetAcc.id] = (balanceChanges[targetAcc.id] || 0) - amount;
   }
 
-  // 3. 集計した残高変動を一括適用
-  // FirestoreのBatchは「同じドキュメントへの複数回書き込み」ができないため、
-  // ループ内で毎回 update せず、最後にまとめて update します。
+  // ----------------------------------------------------
+  // 3. 口座残高の一括更新
+  // ----------------------------------------------------
   Object.keys(balanceChanges).forEach(accId => {
-    if (balanceChanges[accId] !== 0) {
+    const change = balanceChanges[accId];
+    if (change !== 0) {
       const accRef = doc(db, `users/${user.uid}/accounts`, accId);
-      batch.update(accRef, { 
-        balance: increment(balanceChanges[accId]) 
+      // incrementを使うことで、現在の残高に足し引きします
+      batch.update(accRef, {
+        balance: increment(change)
       });
     }
   });
 
   await batch.commit();
-  console.log(`${BATCH_COUNT}件のダミーデータを投入しました`);
+  console.log("既存マスタを利用してデモデータを追加しました");
 };

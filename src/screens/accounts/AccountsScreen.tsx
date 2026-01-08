@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { useMasterData } from '../../store/MasterContext';
@@ -32,7 +33,6 @@ export default function AccountsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       
-      {/* ヘッダー: 色指定を動的スタイルへ移動 */}
       <View style={[
         styles.headerCard, 
         { 
@@ -40,7 +40,6 @@ export default function AccountsScreen() {
           shadowColor: colors.text // 影の色もテーマに合わせて反転（ダークモードでは影が見えにくいですが許容範囲）
         }
       ]}>
-        {/* 文字色に colors.background (白/黒) を使うことで、tint (青/白) とのコントラストを確保 */}
         <Text style={[styles.headerLabel, { color: colors.background }]}>純資産総額</Text>
         <Text style={[styles.headerAmount, { color: colors.background }]}>¥{totalAssets.toLocaleString()}</Text>
       </View>

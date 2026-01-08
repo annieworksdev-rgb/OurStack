@@ -1,84 +1,84 @@
 import React, { useState } from 'react';
-import { View, Text, Button, StyleSheet, Alert, ScrollView, ActivityIndicator } from 'react-native';
-import { seedInitialData, addDummyTransactions } from '../../services/firebase/seed';
+import { View, Text, Button, StyleSheet, Alert, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { regenerateDemoData } from '../../services/firebase/seed';
 import { logout } from '../../services/firebase/auth';
-import { useThemeColor } from '../../hooks/useThemeColor'; // ★追加
+import { useThemeColor } from '../../hooks/useThemeColor';
+import { Ionicons } from '@expo/vector-icons';
 
-export default function SettingsScreen() {
+export default function SettingsScreen({ navigation }: any) {
   // ★テーマカラーを取得
   const colors = useThemeColor();
   const [loading, setLoading] = useState(false);
 
-  const handleSeed = async () => {
-    Alert.alert(
-      "初期データ投入",
-      "マスタデータ（科目・口座）を初期状態に戻しますか？（既存のデータは上書きされます）",
-      [
-        { text: "キャンセル", style: "cancel" },
-        { 
-          text: "実行", 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await seedInitialData();
-              Alert.alert("完了", "マスタデータをリセットしました");
-            } catch (e: any) {
-              Alert.alert("エラー", e.message);
-            }
-          }
-        }
-      ]
-    );
-  };
-
   // ダミーデータ生成ハンドラ
   const handleDummyData = async () => {
-    Alert.alert(
-      "ダミーデータ生成",
-      "過去3ヶ月分の支出データを50件ランダムに生成します。\n口座残高も更新されます。",
-      [
-        { text: "キャンセル", style: "cancel" },
-        { 
-          text: "生成する", 
-          onPress: async () => {
-            setLoading(true);
-            try {
-              await addDummyTransactions();
-              Alert.alert("完了", "データを生成しました。\nホーム画面をリフレッシュして確認してください。");
-            } catch (e: any) {
-              Alert.alert("エラー", e.message);
-            } finally {
-              setLoading(false);
-            }
+  Alert.alert(
+    "デモデータの再構築",
+    "既存のマスタと明細を無視して、整合性の取れた新しいデータを50件投入します。\n（事前にFirestoreでtransactionsを削除しておくと綺麗になります）",
+    [
+      { text: "キャンセル", style: "cancel" },
+      { 
+        text: "再構築する", 
+        onPress: async () => {
+          setLoading(true);
+          try {
+            await regenerateDemoData(); // ★ここ
+            Alert.alert("完了", "データを再構築しました。");
+          } catch (e: any) {
+            Alert.alert("エラー", e.message);
+          } finally {
+            setLoading(false);
           }
         }
-      ]
-    );
-  };
+      }
+    ]
+  );
+};
   
-  return (
-    // ★ styleを配列にして、動的な背景色を上書き適用
+return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       
-      {/* アカウント設定セクション */}
+      {/* 1. アカウント設定セクション (そのまま) */}
       <View style={[styles.section, { backgroundColor: colors.card }]}>
         <Text style={[styles.header, { color: colors.text }]}>アカウント設定</Text>
         <Button title="ログアウト" onPress={logout} color={colors.error} />
       </View>
 
-      {/* 開発用メニューセクション */}
+
+      {/* ★追加: マスタ管理セクション (ここに追加！) */}
+      <View style={[styles.section, { backgroundColor: colors.card }]}>
+        <Text style={[styles.header, { color: colors.text }]}>マスタ管理</Text>
+        
+        {/* 科目管理ボタン */}
+        <TouchableOpacity 
+          style={[styles.menuItem, { borderBottomColor: colors.border }]}
+          onPress={() => navigation.navigate('CategoryManage')}
+        >
+          <View style={styles.menuRow}>
+            <Ionicons name="pricetags-outline" size={24} color={colors.text} style={styles.menuIcon} />
+            <Text style={[styles.menuText, { color: colors.text }]}>科目の設定</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textSub} />
+        </TouchableOpacity>
+
+        {/* 口座管理ボタン */}
+        <TouchableOpacity 
+          style={styles.menuItem} // 一番下なのでボーダーなしでもOK
+          onPress={() => navigation.navigate('AccountManage')}
+        >
+          <View style={styles.menuRow}>
+            <Ionicons name="wallet-outline" size={24} color={colors.text} style={styles.menuIcon} />
+            <Text style={[styles.menuText, { color: colors.text }]}>口座の設定</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textSub} />
+        </TouchableOpacity>
+      </View>
+
+
+      {/* 3. 開発用メニューセクション (そのまま) */}
       <View style={[styles.section, { backgroundColor: colors.card }]}>
         <Text style={[styles.header, { color: colors.text }]}>開発用メニュー</Text>
         
-        {/* 既存のマスタ初期化ボタン */}
-        <View style={{ marginBottom: 20 }}>
-          <Text style={[styles.description, { color: colors.textSub }]}>
-            マスタデータをリセットします。
-          </Text>
-          <Button title="マスタデータ初期化 (Seed)" onPress={handleSeed} color={colors.tint} />
-        </View>
-
-        {/* ★追加: ダミーデータ生成ボタン */}
         <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 20 }}>
           <Text style={[styles.description, { color: colors.textSub }]}>
             グラフ確認用のダミー支出データを50件追加します。
@@ -89,8 +89,8 @@ export default function SettingsScreen() {
             <Button title="ダミーデータ生成 (Random)" onPress={handleDummyData} color={colors.tint} />
           )}
         </View>
-
       </View>
+
     </ScrollView>
   );
 }
@@ -104,5 +104,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1, shadowRadius: 2, elevation: 2
   },
   header: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
-  description: { fontSize: 14, marginBottom: 15, lineHeight: 20 }
+  description: { fontSize: 14, marginBottom: 15, lineHeight: 20 },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 15, // 指で押しやすい高さ
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  menuIcon: {
+    marginRight: 15,
+  },
+  menuText: {
+    fontSize: 16,
+  },
 });

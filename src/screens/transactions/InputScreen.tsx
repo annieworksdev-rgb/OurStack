@@ -286,7 +286,7 @@ export default function InputScreen() {
         batch.set(docRef, transactionData);
       }
 
-      await batch.commit();
+      batch.commit();
       navigation.goBack();
 
     } catch (e: any) {

@@ -5,6 +5,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import HomeScreen from '../screens/home/HomeScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import AccountsScreen from '../screens/accounts/AccountsScreen';
+import AnalysisScreen from '../screens/analysis/AnalysisScreen';
 import { useThemeColor } from '../hooks/useThemeColor';
 
 const Tab = createBottomTabNavigator();
@@ -42,6 +43,8 @@ export default function MainTabNavigator() {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'AccountsTab') {
             iconName = focused ? 'wallet' : 'wallet-outline';
+          } else if (route.name === 'AnalysisTab') { 
+            iconName = focused ? 'pie-chart' : 'pie-chart-outline';
           } else if (route.name === 'SettingsTab') {
             iconName = focused ? 'settings' : 'settings-outline';
           }
@@ -60,6 +63,11 @@ export default function MainTabNavigator() {
         name="AccountsTab" 
         component={AccountsScreen} 
         options={{ title: '資産' }} 
+      />
+      <Tab.Screen 
+        name="AnalysisTab"
+        component={AnalysisScreen} 
+        options={{ title: '分析' }} 
       />
       <Tab.Screen 
         name="SettingsTab" 

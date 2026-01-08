@@ -3,13 +3,15 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '../services/firebase/config';
-import { MasterDataProvider } from '../store/MasterContext';
+import { MasterProvider } from '../store/MasterContext';
 import MainTabNavigator from './MainTabNavigator';
-import InputScreen from '../screens/transactions/InputScreen';
 
 // 画面のインポート
+import InputScreen from '../screens/transactions/InputScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import HomeScreen from '../screens/home/HomeScreen';
+import CategoryManageScreen from '../screens/settings/CategoryManageScreen';
+import AccountManageScreen from '../screens/settings/AccountManageScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -33,7 +35,7 @@ export default function AppNavigator() {
 
   return (
     // 1. データ供給 (Provider) で全体を包む
-    <MasterDataProvider>
+    <MasterProvider>
       <NavigationContainer>
         <Stack.Navigator>
           {user ? (
@@ -54,6 +56,16 @@ export default function AppNavigator() {
                   title: '支出入力'
                 }} 
               />
+              <Stack.Screen 
+                name="CategoryManage" 
+                component={CategoryManageScreen} 
+                options={{ title: '科目の管理', headerBackTitle: '設定' }} // ヘッダーに戻るボタンが付きます
+              />
+              <Stack.Screen 
+                name="AccountManage" 
+                component={AccountManageScreen} 
+                options={{ title: '口座の管理', headerBackTitle: '設定' }} 
+              />
             </Stack.Group>
           ) : (
             // 未ログイン
@@ -61,6 +73,6 @@ export default function AppNavigator() {
           )}
         </Stack.Navigator>
       </NavigationContainer>
-    </MasterDataProvider>
+    </MasterProvider>
   );
 }
