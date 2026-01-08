@@ -72,6 +72,13 @@ export interface User {
 }
 
 /**
+ * ユーザー設定（機能フラグなど）
+ */
+export interface UserSettings {
+  useSubCategory: boolean; // 小科目機能を使うかどうか
+}
+
+/**
  * 口座（Account）
  * 財布、銀行、クレジットカード、電子マネーなど
  */
@@ -105,8 +112,8 @@ export interface Category {
   icon?: string;         // アイコン名
   color?: string;        // グラフ表示用の色
   
-  // 階層構造用
-  parentId?: ID | null;  // 親カテゴリID（nullなら大カテゴリ）
+  // 簡易的な2層構造用
+  subCategories?: string[];
   
   // 表示順序
   order?: number;
@@ -129,6 +136,7 @@ export interface Transaction {
   // 分類
   categoryId?: ID;       // 科目ID
   categoryName?: string; // 非正規化：表示用（マスタ参照削減）
+  subCategory?: string;
   
   // 金の動き
   sourceAccountId?: ID;  // 出金元（支出・振替元）

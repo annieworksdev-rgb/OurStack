@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-import DateTimePicker from '@react-native-community/datetimepicker'; // 日付選択
-import { collection, doc, writeBatch, increment, deleteField, Timestamp } from 'firebase/firestore';
+import { 
+  View, Text, TextInput, Button, StyleSheet, Alert, 
+  ScrollView, TouchableOpacity, Platform, KeyboardAvoidingView 
+} from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons'; // アイコン用
+import { collection, doc, writeBatch, increment, deleteField } from 'firebase/firestore';
 import { db, auth } from '../../services/firebase/config';
 import { useMasterData } from '../../store/MasterContext';
-import { Transaction, TransactionType, ID } from '../../types';
+import { TransactionType } from '../../types';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useThemeColor } from '../../hooks/useThemeColor';
 
@@ -17,8 +20,8 @@ export default function InputScreen() {
   const { categories, accounts } = useMasterData();
   const colors = useThemeColor();
 
-  // --- State (ViewModel properties) ---
-  const [type, setType] = useState<TransactionType>('expense'); // 初期値：支出
+  // --- State ---
+  const [type, setType] = useState<TransactionType>('expense');
   const [date, setDate] = useState(new Date());
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
@@ -28,40 +31,38 @@ export default function InputScreen() {
   const [fromAccountId, setFromAccountId] = useState('');
   const [toAccountId, setToAccountId] = useState('');
 
-  // 日付ピッカーの表示制御（Android用）
+  // 日付ピッカー制御
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // --- 初期値設定ロジック ---
+  // --- 初期化 & 依存関係ロジック (既存のまま維持) ---
   useEffect(() => {
-    // マスタ読み込み完了時、とりあえず先頭の口座を選択状態にする
-    if (accounts.length > 0) {
+    // 新規作成時のみ初期値をセット
+    if (!isEditMode && accounts.length > 0) {
       if (!fromAccountId) setFromAccountId(accounts[0].id);
       if (!toAccountId) setToAccountId(accounts[0].id);
     }
-    // 科目は現在のTypeに合わせてフィルタして先頭を選択
-    const filteredCats = categories.filter(c => c.type === type);
-    if (filteredCats.length > 0) {
-      setCategoryId(filteredCats[0].id);
+    
+    // 科目の初期選択
+    if (!isEditMode) {
+      const filteredCats = categories.filter(c => c.type === type);
+      if (filteredCats.length > 0) {
+        setCategoryId(filteredCats[0].id);
+      }
     }
-  }, [accounts, categories, type]); // typeが変わったら科目の選択肢もリセット
+  }, [accounts, categories, type, isEditMode]);
 
   useEffect(() => {
-    // 1. チャージの場合の有効な口座リスト（電子マネーのみ）
-    // 2. それ以外（振替など）の場合は全口座
+    // 口座の整合性チェック
     const validToAccounts = accounts.filter(a => {
       if (type === 'charge') return a.type === 'e_money';
       return true;
     });
 
-    // 現在選択されている toAccountId が、有効なリストの中に存在するかチェック
     const isValidSelection = validToAccounts.some(a => a.id === toAccountId);
-
-    // もし選択中のIDがリストになければ（例: メイン銀行 が選択されているのにリストは PayPayしかない）、
-    // 強制的にリストの先頭（PayPay）を選択状態にする
     if (!isValidSelection && validToAccounts.length > 0) {
       setToAccountId(validToAccounts[0].id);
     }
-  }, [type, accounts, toAccountId]); // typeが変わるたびにチェック！
+  }, [type, accounts, toAccountId]);
 
   useEffect(() => {
     if (transaction) {
@@ -69,26 +70,23 @@ export default function InputScreen() {
       
       let initialDate = new Date();
       if (typeof transaction.date === 'string') {
-        initialDate = new Date(transaction.date); // String -> Date
+        initialDate = new Date(transaction.date);
       } else if (transaction.date?.toDate) {
-        initialDate = transaction.date.toDate();  // Timestamp -> Date
+        initialDate = transaction.date.toDate();
       } else {
-        initialDate = new Date(transaction.date); // Fallback
+        initialDate = new Date(transaction.date);
       }
       setDate(initialDate);
 
       setAmount(transaction.amount.toString());
       setMemo(transaction.memo || '');
       
-      // 科目・口座の復元
       if (transaction.categoryId) setCategoryId(transaction.categoryId);
       if (transaction.sourceAccountId) setFromAccountId(transaction.sourceAccountId);
       
-      // 入金先・振替先の復元
-      // 以前のロジックに基づき、収入ならtarget、振替ならtargetを見る
       if (transaction.targetAccountId) {
         if (transaction.type === 'income') {
-           setFromAccountId(transaction.targetAccountId); // UI上は「入金先」としてfromAccountStateを使う仕様のため
+           setFromAccountId(transaction.targetAccountId);
         } else {
            setToAccountId(transaction.targetAccountId);
         }
@@ -96,18 +94,14 @@ export default function InputScreen() {
     }
   }, [transaction]);
 
-  // --- フィルタリングロジック (CollectionViewSource) ---
-  
-  // 1. 科目の選択肢（収入or支出でフィルタ）
+  // --- フィルタリング ---
   const currentCategories = categories.filter(c => c.type === type);
-
-  // 2. 「入金先」口座の選択肢（チャージの場合は電子マネーのみに限定）
   const toAccountOptions = accounts.filter(a => {
-    if (type === 'charge') return a.type === 'e_money'; // チャージは電子マネーのみ
+    if (type === 'charge') return a.type === 'e_money';
     return true;
   });
 
-  // --- 削除処理 ---
+  // --- 削除処理 (既存ロジック維持) ---
   const handleDelete = async () => {
     if (!isEditMode || !transaction) return;
 
@@ -122,41 +116,29 @@ export default function InputScreen() {
           onPress: async () => {
             try {
               const batch = writeBatch(db);
-              const t = transaction; // 短縮用
+              const t = transaction;
               const valAmount = t.amount;
 
-              // 1. 残高を元に戻す（逆操作）
-              // C#なら「Rollback Logic」です
               if (t.type === 'expense') {
-                // 支出の削除 = お金が戻ってくる (+)
                 const ref = doc(db, `users/${auth.currentUser?.uid}/accounts`, t.sourceAccountId);
                 batch.update(ref, { balance: increment(valAmount) });
-              
               } else if (t.type === 'income') {
-                // 収入の削除 = お金が消える (-)
-                // ※保存時のロジックに合わせて targetAccountId を参照
-                const targetId = t.targetAccountId || t.sourceAccountId; // 念のため両方ケア
+                const targetId = t.targetAccountId || t.sourceAccountId;
                 if(targetId) {
                     const ref = doc(db, `users/${auth.currentUser?.uid}/accounts`, targetId);
                     batch.update(ref, { balance: increment(-valAmount) });
                 }
-
               } else {
-                // 振替・チャージの削除 = 出金元に戻し(+), 入金先から引く(-)
                 const sourceRef = doc(db, `users/${auth.currentUser?.uid}/accounts`, t.sourceAccountId);
                 const targetRef = doc(db, `users/${auth.currentUser?.uid}/accounts`, t.targetAccountId);
-                
                 batch.update(sourceRef, { balance: increment(valAmount) });
                 batch.update(targetRef, { balance: increment(-valAmount) });
               }
 
-              // 2. 明細自体を削除
               const transRef = doc(db, `users/${auth.currentUser?.uid}/transactions`, t.id);
               batch.delete(transRef);
-
               await batch.commit();
               navigation.goBack();
-
             } catch (e: any) {
               Alert.alert("エラー", e.message);
             }
@@ -166,7 +148,7 @@ export default function InputScreen() {
     );
   };
 
-  // --- 保存処理 ---
+  // --- 保存処理 (既存ロジック維持) ---
   const handleSave = async () => {
     if (!amount) {
       Alert.alert("エラー", "金額を入力してください");
@@ -181,29 +163,21 @@ export default function InputScreen() {
     try {
       const batch = writeBatch(db);
 
-      // =========================================================
-      // ステップ1: 編集モードなら、まずは「旧データの取り消し」を行う
-      // （handleDeleteのロジックとほぼ同じです）
-      // =========================================================
+      // 1. 旧データの取り消し
       if (isEditMode && transaction) {
         const t = transaction;
         const oldAmount = t.amount;
 
         if (t.type === 'expense') {
-          // 旧: 支出を取り消す（出金元にお金を戻す +）
           const ref = doc(db, `users/${user.uid}/accounts`, t.sourceAccountId);
           batch.update(ref, { balance: increment(oldAmount) });
-
         } else if (t.type === 'income') {
-          // 旧: 収入を取り消す（入金先からお金を引く -）
           const targetId = t.targetAccountId || t.sourceAccountId;
           if (targetId) {
             const ref = doc(db, `users/${user.uid}/accounts`, targetId);
             batch.update(ref, { balance: increment(-oldAmount) });
           }
-
         } else {
-          // 旧: 振替を取り消す（出金元に戻し +、入金先から引く -）
           const sourceRef = doc(db, `users/${user.uid}/accounts`, t.sourceAccountId);
           const targetRef = doc(db, `users/${user.uid}/accounts`, t.targetAccountId);
           batch.update(sourceRef, { balance: increment(oldAmount) });
@@ -211,26 +185,18 @@ export default function InputScreen() {
         }
       }
 
-      // =========================================================
-      // ステップ2: 新しい入力内容で「残高更新」を行う
-      // （新規作成時と同じロジックです）
-      // =========================================================
-      
-      // 保存先のドキュメント参照（編集なら既存ID、新規なら新ID）
+      // 2. 新規/更新データの作成
       const docRef = isEditMode && transaction
         ? doc(db, `users/${user.uid}/transactions`, transaction.id)
-        : doc(collection(db, `users/${user.uid}/transactions`)); // 新規ID採番
+        : doc(collection(db, `users/${user.uid}/transactions`));
 
-      // 保存するデータオブジェクト作成
       const transactionData: any = {
-        // IDは編集時も保持、新規時は生成したRefのID
         id: docRef.id, 
         type,
-        date: date, // Date型でOK
+        date: date,
         amount: valAmount,
         memo,
-        updatedAt: new Date(), // 更新日時
-        // 新規作成時のみ必要なフィールド
+        updatedAt: new Date(),
         ...(isEditMode ? {} : { 
           createdBy: user.uid, 
           createdAt: new Date(),
@@ -240,53 +206,42 @@ export default function InputScreen() {
       };
 
       if (type === 'expense') {
-        // --- 新: 支出 ---
         transactionData.sourceAccountId = fromAccountId;
-        transactionData.targetAccountId = deleteField(); // 以前の値が残らないように消す
+        transactionData.targetAccountId = deleteField();
         transactionData.categoryId = categoryId;
         transactionData.categoryName = categories.find(c => c.id === categoryId)?.name;
 
-        // 残高: 出金元を減らす
         const sourceRef = doc(db, `users/${user.uid}/accounts`, fromAccountId);
         batch.update(sourceRef, { balance: increment(-valAmount) });
 
       } else if (type === 'income') {
-        // --- 新: 収入 ---
-        transactionData.sourceAccountId = deleteField(); // 消す
-        transactionData.targetAccountId = fromAccountId; // UIの入金先
+        transactionData.sourceAccountId = deleteField();
+        transactionData.targetAccountId = fromAccountId; 
         transactionData.categoryId = categoryId;
         transactionData.categoryName = categories.find(c => c.id === categoryId)?.name;
 
-        // 残高: 入金先を増やす
         const targetRef = doc(db, `users/${user.uid}/accounts`, fromAccountId);
         batch.update(targetRef, { balance: increment(valAmount) });
 
       } else {
-        // --- 新: 振替・チャージ ---
         transactionData.sourceAccountId = fromAccountId;
         transactionData.targetAccountId = toAccountId;
         transactionData.categoryId = deleteField();
         transactionData.categoryName = '';
 
-        // 残高: 出金元を減らす ＆ 入金先を増やす
         const sourceRef = doc(db, `users/${user.uid}/accounts`, fromAccountId);
         const targetRef = doc(db, `users/${user.uid}/accounts`, toAccountId);
-        
         batch.update(sourceRef, { balance: increment(-valAmount) });
         batch.update(targetRef, { balance: increment(valAmount) });
       }
 
-      // =========================================================
-      // ステップ3: ドキュメントの保存（Commit）
-      // =========================================================
-      
       if (isEditMode) {
         batch.update(docRef, transactionData);
       } else {
         batch.set(docRef, transactionData);
       }
 
-      batch.commit();
+      await batch.commit();
       navigation.goBack();
 
     } catch (e: any) {
@@ -294,161 +249,228 @@ export default function InputScreen() {
     }
   };
 
-  // 日付変更ハンドラ
   const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
     if (selectedDate) setDate(selectedDate);
   };
 
+  // --- UIコンポーネント ---
+
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      
-      {/* 1. 区分切り替えタブ (Segmented Control) */}
-      <View style={styles.segmentContainer}>
-        {(['expense', 'income', 'transfer', 'charge'] as TransactionType[]).map((t, index, array) => (
-          <TouchableOpacity
-            key={t}
-            style={[
-              styles.segmentBtn,
-              index === 0 && styles.segmentBtnFirst,
-              index === array.length - 1 && styles.segmentBtnLast,
-
-              type === t && { backgroundColor: colors.tint },
-              { borderColor: colors.tint }
-            ]}
-            onPress={() => setType(t)}
-          >
-            <Text style={[
-              styles.segmentText,
-              type === t ? { color: '#fff' } : { color: colors.tint }
-            ]}>
-              {t === 'expense' ? '支出' : t === 'income' ? '収入' : t === 'transfer' ? '振替' : 'チャージ'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* 2. 日付入力 */}
-      <View style={styles.rowItem}>
-        <Text style={[styles.label, {color: colors.text}]}>日付</Text>
-        {Platform.OS === 'android' ? (
-          <View>
-             <Button title={date.toLocaleDateString()} onPress={() => setShowDatePicker(true)} color={colors.textSub} />
-             {showDatePicker && <DateTimePicker value={date} mode="date" onChange={onDateChange} />}
-          </View>
-        ) : (
-          <DateTimePicker value={date} mode="date" display="default" onChange={onDateChange} />
-        )}
-      </View>
-
-      {/* 3. 金額入力 */}
-      <View style={styles.inputGroup}>
-        <Text style={[styles.label, {color: colors.text}]}>金額</Text>
-        <TextInput 
-          style={[styles.inputAmount, { color: colors.text, borderColor: colors.border }]} 
-          keyboardType="numeric" 
-          value={amount} 
-          onChangeText={setAmount} 
-          placeholder="0"
-          placeholderTextColor={colors.placeholder}
-          autoFocus
-        />
-      </View>
-
-      {/* 4. 動的フォームエリア */}
-      <View style={[styles.formCard, { backgroundColor: colors.card }]}>
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         
-        {/* 科目 (振替・チャージ以外で表示) */}
-        {(type === 'expense' || type === 'income') && (
-          <View style={styles.pickerRow}>
-            <Text style={[styles.pickerLabel, {color: colors.textSub}]}>科目</Text>
-            <Picker
-              selectedValue={categoryId}
-              style={{ flex: 1, color: colors.text }}
-              onValueChange={v => setCategoryId(v)}>
-              {currentCategories.map(c => <Picker.Item key={c.id} label={c.name} value={c.id} />)}
-            </Picker>
-          </View>
-        )}
+        {/* 1. 区分タブ */}
+        <View style={styles.segmentContainer}>
+          {(['expense', 'income', 'transfer', 'charge'] as TransactionType[]).map((t, index, array) => (
+            <TouchableOpacity
+              key={t}
+              style={[
+                styles.segmentBtn,
+                index === 0 && styles.segmentBtnFirst,
+                index === array.length - 1 && styles.segmentBtnLast,
+                type === t && { backgroundColor: colors.tint },
+                { borderColor: colors.tint }
+              ]}
+              onPress={() => setType(t)}
+            >
+              <Text style={[
+                styles.segmentText,
+                type === t ? { color: '#fff' } : { color: colors.tint }
+              ]}>
+                {t === 'expense' ? '支出' : t === 'income' ? '収入' : t === 'transfer' ? '振替' : 'チャージ'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-        {/* 出金元口座 (収入以外で表示) */}
-        {type !== 'income' && (
-          <View style={styles.pickerRow}>
-            <Text style={[styles.pickerLabel, {color: colors.textSub}]}>出金元</Text>
-            <Picker
-              selectedValue={fromAccountId}
-              style={{ flex: 1, color: colors.text }}
-              onValueChange={v => setFromAccountId(v)}>
-              {accounts.map(a => <Picker.Item key={a.id} label={a.name} value={a.id} />)}
-            </Picker>
-          </View>
-        )}
-
-        {/* 矢印アイコン (振替・チャージ時のみ) */}
-        {(type === 'transfer' || type === 'charge') && (
-          <View style={{ alignItems: 'center', marginVertical: -5 }}>
-            <Text style={{ fontSize: 20, color: colors.textSub }}>↓</Text>
-          </View>
-        )}
-
-        {/* 入金先口座 (支出以外で表示) */}
-        {type !== 'expense' && (
-          <View style={styles.pickerRow}>
-            <Text style={[styles.pickerLabel, {color: colors.textSub}]}>
-              {type === 'income' ? '入金先' : '入金先'}
-            </Text>
-            <Picker
-              selectedValue={type === 'income' ? fromAccountId : toAccountId} // 収入時はfromAccountを使う仕様にした場合
-              // ※補足: 収入の「入金先」を fromAccountId に入れるか、targetAccountId に入れるかは設計次第。
-              // ここでは「収入も fromAccount (現在の所持金が増える場所)」として扱っていますが、
-              // もしUI的に分けたい場合はロジック調整が必要です。
-              // 今回は簡単のため、収入時の入金先 = fromAccountId としています。
-              onValueChange={v => type === 'income' ? setFromAccountId(v) : setToAccountId(v)}
-              style={{ flex: 1, color: colors.text }}>
-              
-              {/* 収入時は全口座、チャージ時は電子マネーのみ */}
-              {(type === 'income' ? accounts : toAccountOptions).map(a => 
-                <Picker.Item key={a.id} label={a.name} value={a.id} />
-              )}
-            </Picker>
-          </View>
-        )}
-
-      </View>
-
-      {/* 5. メモ */}
-      <View style={styles.inputGroup}>
-        <Text style={[styles.label, {color: colors.text}]}>メモ</Text>
-        <TextInput 
-          style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card }]} 
-          value={memo} 
-          onChangeText={setMemo} 
-          placeholder="内容を入力"
-          placeholderTextColor={colors.placeholder}
-        />
-      </View>
-
-      {/* 保存ボタン */}
-      <View style={{ marginTop: 30, marginBottom: 20 }}>
-        <Button 
-          title={isEditMode ? "修正内容を保存" : "保存する"} 
-          onPress={handleSave} 
-          color={colors.tint} 
-        />
-      </View>
-
-      {/* 削除ボタン（編集モードのみ表示） */}
-      {isEditMode && (
-        <View style={{ marginBottom: 50 }}>
-          <Button 
-            title="この明細を削除" 
-            onPress={handleDelete} 
-            color={colors.error} 
+        {/* 2. 金額入力（メイン） */}
+        <View style={styles.amountContainer}>
+          <Text style={[styles.yenMark, { color: colors.text }]}>¥</Text>
+          <TextInput
+            style={[styles.amountInput, { color: colors.text }]}
+            placeholder="0"
+            placeholderTextColor={colors.textSub}
+            keyboardType="number-pad"
+            value={amount}
+            onChangeText={setAmount}
+            autoFocus
           />
         </View>
-      )}
 
-    </ScrollView>
+        {/* 3. 日付選択（ボタン化） */}
+        <View style={styles.dateRow}>
+          <TouchableOpacity 
+            style={[styles.dateButton, { backgroundColor: colors.card, borderColor: colors.border }]} 
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Ionicons name="calendar-outline" size={20} color={colors.text} style={{ marginRight: 8 }} />
+            <Text style={[styles.dateText, { color: colors.text }]}>
+              {date.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })}
+            </Text>
+          </TouchableOpacity>
+          {(showDatePicker || Platform.OS === 'ios') && (Platform.OS === 'ios' ? (
+             // iOSはインライン表示させたい場合は要調整だが、今回はModal的に扱うか、ボタンタップで表示
+             // ここでは簡易的に非表示(DateTimePickerの仕様に依存)
+             <View style={{ display: 'none' }}><DateTimePicker value={date} onChange={onDateChange} /></View>
+          ) : (
+             showDatePicker && <DateTimePicker value={date} onChange={onDateChange} />
+          ))}
+           {/* iOS用のPicker呼び出しハック（実機で動作確認推奨） */}
+           {Platform.OS === 'ios' && (
+             <DateTimePicker 
+               value={date} 
+               mode="date" 
+               display="compact"
+               onChange={onDateChange}
+               style={{ marginLeft: 'auto' }}
+             />
+           )}
+        </View>
+
+        {/* 4. マスタ選択エリア */}
+        
+        {/* 科目選択 (支出・収入のみ) */}
+        {(type === 'expense' || type === 'income') && (
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: colors.textSub }]}>科目</Text>
+            <View style={styles.gridContainer}>
+              {currentCategories.map(cat => (
+                <TouchableOpacity 
+                  key={cat.id}
+                  style={[
+                    styles.catButton, 
+                    { borderColor: colors.border, backgroundColor: colors.card },
+                    categoryId === cat.id && { backgroundColor: colors.tint, borderColor: colors.tint }
+                  ]}
+                  onPress={() => setCategoryId(cat.id)}
+                >
+                  <Ionicons 
+                    name={cat.icon as any || 'pricetag'} 
+                    size={24} 
+                    color={categoryId === cat.id ? 'white' : colors.text} 
+                  />
+                  <Text style={[
+                    styles.catText, 
+                    { color: categoryId === cat.id ? 'white' : colors.text }
+                  ]}>
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              {/* 科目がない場合のメッセージ */}
+              {currentCategories.length === 0 && (
+                <Text style={{ color: colors.textSub, padding: 10 }}>科目がありません。設定から追加してください。</Text>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* 口座選択A：出金元（収入以外）or 入金先（収入） */}
+        {/* ロジック上、収入の入金先も fromAccountId を使っているので、ここで共通化 */}
+        {(type !== 'income' || type === 'income') && (
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: colors.textSub }]}>
+              {type === 'income' ? '入金先' : '支払い元'}
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll}>
+              {accounts.map(acc => (
+                <TouchableOpacity
+                  key={acc.id}
+                  style={[
+                    styles.accButton,
+                    { borderColor: colors.border, backgroundColor: colors.card },
+                    fromAccountId === acc.id && { borderColor: colors.tint, borderWidth: 2, backgroundColor: colors.card }
+                  ]}
+                  onPress={() => setFromAccountId(acc.id)}
+                >
+                   <Ionicons 
+                    name={acc.type === 'cash' ? 'wallet-outline' : 'card-outline'} 
+                    size={16} 
+                    color={fromAccountId === acc.id ? colors.tint : colors.textSub} 
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={[
+                    styles.accText, 
+                    { color: fromAccountId === acc.id ? colors.tint : colors.text }
+                  ]}>
+                    {acc.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* 矢印 (振替・チャージのみ) */}
+        {(type === 'transfer' || type === 'charge') && (
+          <View style={{ alignItems: 'center', marginVertical: 5 }}>
+            <Ionicons name="arrow-down-circle" size={24} color={colors.textSub} />
+          </View>
+        )}
+
+        {/* 口座選択B：入金先（振替・チャージのみ） */}
+        {(type === 'transfer' || type === 'charge') && (
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: colors.textSub }]}>入金先</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll}>
+              {toAccountOptions.map(acc => (
+                <TouchableOpacity
+                  key={acc.id}
+                  style={[
+                    styles.accButton,
+                    { borderColor: colors.border, backgroundColor: colors.card },
+                    toAccountId === acc.id && { borderColor: colors.tint, borderWidth: 2 }
+                  ]}
+                  onPress={() => setToAccountId(acc.id)}
+                >
+                  <Text style={[
+                    styles.accText, 
+                    { color: toAccountId === acc.id ? colors.tint : colors.text }
+                  ]}>
+                    {acc.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* 5. メモ */}
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: colors.textSub }]}>メモ</Text>
+          <TextInput
+            style={[styles.inputMemo, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
+            placeholder="コンビニ、ランチなど"
+            placeholderTextColor={colors.textSub}
+            value={memo}
+            onChangeText={setMemo}
+          />
+        </View>
+
+        {/* 削除ボタン（編集モードのみ） */}
+        {isEditMode && (
+          <TouchableOpacity onPress={handleDelete} style={{ alignItems: 'center', marginTop: 20 }}>
+            <Text style={{ color: colors.error, fontSize: 16 }}>この明細を削除</Text>
+          </TouchableOpacity>
+        )}
+
+      </ScrollView>
+
+      {/* フッター保存ボタン */}
+      <View style={[styles.footer, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
+        <TouchableOpacity 
+          style={[styles.saveButton, { backgroundColor: colors.tint }]} 
+          onPress={handleSave}
+        >
+          <Text style={styles.saveText}>{isEditMode ? '変更を保存' : '保存する'}</Text>
+        </TouchableOpacity>
+      </View>
+
+    </KeyboardAvoidingView>
   );
 }
 
@@ -461,27 +483,53 @@ const styles = StyleSheet.create({
     paddingVertical: 8, paddingHorizontal: 12, borderWidth: 1, 
     flex: 1, alignItems: 'center',
   },
-  segmentBtnFirst: {
-    borderTopLeftRadius: 5, borderBottomLeftRadius: 5,
-  },
-  segmentBtnLast: {
-    borderTopRightRadius: 5, borderBottomRightRadius: 5,
-  },
+  segmentBtnFirst: { borderTopLeftRadius: 5, borderBottomLeftRadius: 5 },
+  segmentBtnLast: { borderTopRightRadius: 5, borderBottomRightRadius: 5 },
   segmentText: { fontSize: 12, fontWeight: 'bold' },
 
-  rowItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 },
-  label: { fontSize: 14, fontWeight: 'bold', marginBottom: 5 },
-  
-  inputGroup: { marginBottom: 20 },
-  inputAmount: { 
-    fontSize: 30, fontWeight: 'bold', textAlign: 'right', 
-    borderBottomWidth: 1, padding: 5 
-  },
-  input: { 
-    borderWidth: 1, padding: 12, borderRadius: 8, fontSize: 16 
-  },
+  // 金額
+  amountContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  yenMark: { fontSize: 30, fontWeight: 'bold', marginRight: 10 },
+  amountInput: { fontSize: 40, fontWeight: 'bold', minWidth: 100, textAlign: 'center' },
 
-  formCard: { borderRadius: 10, marginBottom: 20, padding: 10 },
-  pickerRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 0.5, borderBottomColor: '#ddd' },
-  pickerLabel: { width: 60, fontSize: 14, fontWeight: 'bold' },
+  // 日付
+  dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  dateButton: { 
+    flexDirection: 'row', alignItems: 'center', 
+    paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, borderWidth: 1 
+  },
+  dateText: { fontSize: 16, fontWeight: '600' },
+
+  // 各セクション
+  section: { marginBottom: 20 },
+  label: { fontSize: 13, marginBottom: 8, fontWeight: '600' },
+
+  // 科目グリッド
+  gridContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', marginHorizontal: -5 },
+  catButton: { 
+    width: '22%', aspectRatio: 1, 
+    justifyContent: 'center', alignItems: 'center', 
+    margin: '1.5%', borderRadius: 12, borderWidth: 1 
+  },
+  catText: { fontSize: 11, marginTop: 4, textAlign: 'center' },
+
+  // 口座スクロール
+  accountScroll: { flexDirection: 'row' },
+  accButton: { 
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 10, 
+    borderRadius: 20, borderWidth: 1, marginRight: 10 
+  },
+  accText: { fontWeight: 'bold', fontSize: 14 },
+
+  // メモ
+  inputMemo: { height: 44, borderRadius: 8, paddingHorizontal: 12, borderWidth: 1 },
+
+  // フッター
+  footer: { 
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    padding: 20, borderTopWidth: 1, paddingBottom: Platform.OS === 'ios' ? 40 : 20 
+  },
+  saveButton: { height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', shadowOpacity: 0.2, shadowRadius: 3, shadowOffset: {height: 2, width: 0}, elevation: 5 },
+  saveText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
 });
