@@ -12,6 +12,8 @@ import LoginScreen from '../screens/auth/LoginScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import CategoryManageScreen from '../screens/settings/CategoryManageScreen';
 import AccountManageScreen from '../screens/settings/AccountManageScreen';
+import RecurringListScreen from '../screens/settings/RecurringListScreen';
+import RecurringInputScreen from '../screens/settings/RecurringInputScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -49,7 +51,7 @@ export default function AppNavigator() {
               />
               {/* 入力画面（モーダルとして設定） */}
               <Stack.Screen 
-                name="InputModal" 
+                name="Input" 
                 component={InputScreen} 
                 options={{ 
                   presentation: 'modal', // 下から出てくる設定
@@ -66,6 +68,8 @@ export default function AppNavigator() {
                 component={AccountManageScreen} 
                 options={{ title: '口座の管理', headerBackTitle: '設定' }} 
               />
+              <Stack.Screen name="RecurringList" component={RecurringListScreen} options={{ title: '繰り返し入力' }} />
+              <Stack.Screen name="RecurringInput" component={RecurringInputScreen} options={{ presentation: 'modal', title: '設定の作成' }} />
             </Stack.Group>
           ) : (
             // 未ログイン

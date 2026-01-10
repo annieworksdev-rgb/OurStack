@@ -93,12 +93,16 @@ export interface Account {
 
   // 残高管理
   balance: number;       // 現在高
+  startDate?: Date;      // 利用開始日
   currency: string;      // "JPY"
   
   // クレジットカード特有の設定
   closingDay?: number;   // 締め日（例: 15）
   paymentDay?: number;   // 支払日（例: 27）
   isCredit?: boolean;    // trueなら負債として扱う
+
+  // 使用停止
+  isArchived?: boolean;  // true なら入力画面の選択肢に出さない
 }
 
 /**
@@ -111,7 +115,8 @@ export interface Category {
   type: TransactionType; // 収入科目か支出科目か
   icon?: string;         // アイコン名
   color?: string;        // グラフ表示用の色
-  
+  budget?: number;       // 予算
+
   // 簡易的な2層構造用
   subCategories?: string[];
   

@@ -5,6 +5,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
+import { getStorage } from "firebase/storage";
 
 // Firebaseコンソールから取得したキーをここに貼り付け
 const firebaseConfig = {
@@ -36,3 +37,4 @@ const db = initializeFirestore(app, {
 });
 
 export { db, auth };
+export const storage = getStorage(app);
