@@ -20,7 +20,7 @@ const ACCOUNT_ICONS: Record<string, any> = {
 };
 
 export default function InputScreen({ route, navigation }: any) {
-  const { categories, accounts } = useMasterData();
+  const { categories, accounts, currentBookId } = useMasterData();
   const colors = useThemeColor();
 
   // ★追加: 編集モードかどうか判定
@@ -114,15 +114,16 @@ export default function InputScreen({ route, navigation }: any) {
     return await getDownloadURL(storageRef);
   };
 
-  // 削除処理 ★追加
+  // 削除処理
   const handleDelete = async () => {
     Alert.alert("削除の確認", "本当にこのデータを削除しますか？", [
       { text: "キャンセル", style: "cancel" },
       { text: "削除する", style: "destructive", onPress: async () => {
-          if (!auth.currentUser || !isEditMode) return;
+          if (!auth.currentUser || !isEditMode || !currentBookId) return;
           try {
              setUploading(true);
-             await deleteDoc(doc(db, `users/${auth.currentUser.uid}/transactions`, editData.id));
+             // ★修正: パスを books/{bookId}/transactions に変更
+             await deleteDoc(doc(db, `books/${currentBookId}/transactions`, editData.id));
              Alert.alert("完了", "削除しました");
              navigation.goBack();
           } catch(e) {
@@ -174,23 +175,24 @@ export default function InputScreen({ route, navigation }: any) {
         sourceAccountId: fromAccountId, targetAccountId: type === 'transfer' ? toAccountId : null,
         imageUrl: downloadUrl,
         scope: 'private',
-        // 作成者情報は更新しない、updatedAtのみ更新
         updatedAt: serverTimestamp(),
       };
 
       if (isEditMode) {
         // --- 更新 ---
-        await updateDoc(doc(db, `users/${user.uid}/transactions`, editData.id), saveData);
+        // ★修正: パスを books/{bookId}/transactions に変更
+        await updateDoc(doc(db, `books/${currentBookId}/transactions`, editData.id), saveData);
         Alert.alert("完了", "更新しました");
-        navigation.goBack(); // 前の画面に戻る
+        navigation.goBack(); 
       } else {
         // --- 新規作成 ---
-        await addDoc(collection(db, `users/${user.uid}/transactions`), {
+        // ★修正: パスを books/{bookId}/transactions に変更
+        await addDoc(collection(db, `books/${currentBookId}/transactions`), {
           ...saveData,
           createdBy: user.uid, approvalStatus: 'confirmed', fundingSource: 'private_fund',
           createdAt: serverTimestamp(),
         });
-        // 連続入力のためにリセット
+        
         setAmount(''); setMemo(''); setImageUri(null);
         Alert.alert("完了", "保存しました");
       }

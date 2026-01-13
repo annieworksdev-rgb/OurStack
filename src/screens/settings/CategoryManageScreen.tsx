@@ -47,7 +47,7 @@ const ICON_GROUPS = [
 ];
 
 export default function CategoryManageScreen() {
-  const { categories } = useMasterData();
+  const { categories, currentBookId } = useMasterData();
   const colors = useThemeColor();
 
   // --- State ---
@@ -103,30 +103,28 @@ export default function CategoryManageScreen() {
       Alert.alert('エラー', '科目名を入力してください');
       return;
     }
-    if (!auth.currentUser || !editingCategory) return;
+    if (!auth.currentUser || !editingCategory || !currentBookId) return;
 
     try {
-      // 画面上の最新の子科目リストを取得
       const currentSubs = editingCategory.subCategories || [];
 
       if (editingCategory.id) {
-        // --- 既存データの更新 (IDがある場合) ---
-        const ref = doc(db, `users/${auth.currentUser.uid}/categories`, editingCategory.id);
+        // --- 更新 ---
+        const ref = doc(db, `books/${currentBookId}/categories`, editingCategory.id);
         await updateDoc(ref, {
           name: tempName.trim(),
           type: tempType,
           icon: tempIcon,
-          subCategories: currentSubs, // 子科目リストも上書き
-          // updatedAT: serverTimestamp() // 必要なら更新日時も
+          subCategories: currentSubs,
         });
       } else {
-        // --- 新規作成 (IDがない場合) ---
-        await addDoc(collection(db, `users/${auth.currentUser.uid}/categories`), {
+        // --- 新規 ---
+        await addDoc(collection(db, `books/${currentBookId}/categories`), {
           name: tempName.trim(),
           type: tempType,
           sortOrder: categories.length + 1,
           icon: tempIcon,
-          subCategories: currentSubs, // 作っておいた子科目リストを保存
+          subCategories: currentSubs,
           createdAt: serverTimestamp()
         });
       }
@@ -139,7 +137,7 @@ export default function CategoryManageScreen() {
 
   // 削除処理（親科目ごと消す）
   const handleDelete = () => {
-    if (!editingCategory || !editingCategory.id) return; // 新規作成中は削除ボタン出さない想定だが念のため
+    if (!auth.currentUser || !editingCategory?.id || !currentBookId) return;
     
     Alert.alert(
       '科目の削除',
@@ -152,7 +150,7 @@ export default function CategoryManageScreen() {
           onPress: async () => {
             if (!auth.currentUser || !editingCategory.id) return;
             try {
-              await deleteDoc(doc(db, `users/${auth.currentUser.uid}/categories`, editingCategory.id));
+              await deleteDoc(doc(db, `books/${currentBookId}/categories`, editingCategory.id));
               setModalVisible(false);
             } catch (e) {
               Alert.alert('エラー', '削除できませんでした');

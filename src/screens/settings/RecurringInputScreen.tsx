@@ -11,7 +11,7 @@ import { useMasterData } from '../../store/MasterContext';
 import { useThemeColor } from '../../hooks/useThemeColor';
 
 export default function RecurringInputScreen({ route, navigation }: any) {
-  const { categories, accounts } = useMasterData();
+  const { categories, accounts, currentBookId } = useMasterData();
   const colors = useThemeColor();
   const editData = route.params?.setting || null;
   const isEditMode = !!editData;
@@ -74,12 +74,12 @@ export default function RecurringInputScreen({ route, navigation }: any) {
       };
 
       if (isEditMode) {
-        await updateDoc(doc(db, `users/${user.uid}/recurring`, editData.id), saveData);
-      } else {
+        await updateDoc(doc(db, `books/${currentBookId}/recurring`, editData.id), saveData);
+      }else {
         // 新規作成時は nextDueDate（次回予定日）を計算して入れる必要があるが、
         // いったん「今日の次の該当日」を後でバッチ処理させるか、簡易的に今日を入れる。
         // ここでは単純に保存し、実行ロジック側で判断させる
-        await addDoc(collection(db, `users/${user.uid}/recurring`), {
+        await addDoc(collection(db, `books/${currentBookId}/recurring`), {
           ...saveData,
           createdAt: serverTimestamp(),
           nextDueDate: null // 初回はnullにしておき、ロジック側で「未設定なら計算」させる手もある
@@ -99,7 +99,7 @@ export default function RecurringInputScreen({ route, navigation }: any) {
     Alert.alert('削除', 'この設定を削除しますか？', [
       { text: 'キャンセル', style: 'cancel' },
       { text: '削除', style: 'destructive', onPress: async () => {
-          await deleteDoc(doc(db, `users/${auth.currentUser?.uid}/recurring`, editData.id));
+          await deleteDoc(doc(db, `books/${currentBookId}/recurring`, editData.id));
           navigation.goBack();
       }}
     ]);

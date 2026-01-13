@@ -9,7 +9,7 @@ import { getStorage } from "firebase/storage";
 
 // Firebaseコンソールから取得したキーをここに貼り付け
 const firebaseConfig = {
-  apiKey: "AIzaSyBHHJcXuhNphzmkVI269yaZz-8jooqRS5M",
+  apiKey: "AIzaSyCrdlX2sPqY8kYJrQcy7NtHyJdUxX7aQ4Q",
   authDomain: "ourstack-annieworks.firebaseapp.com",
   projectId: "ourstack-annieworks",
   storageBucket: "ourstack-annieworks.firebasestorage.app",

@@ -20,7 +20,7 @@ const ACCOUNT_TYPES = [
 ] as const;
 
 export default function AccountManageScreen() {
-  const { accounts } = useMasterData();
+  const { accounts, currentBookId } = useMasterData();
   const colors = useThemeColor();
 
   // --- State ---
@@ -137,11 +137,11 @@ export default function AccountManageScreen() {
 
       if (editingAccount) {
         // --- 更新 ---
-        const ref = doc(db, `users/${auth.currentUser.uid}/accounts`, editingAccount.id);
+        const ref = doc(db, `books/${currentBookId}/accounts`, editingAccount.id);
         await updateDoc(ref, dataToSave);
       } else {
         // --- 新規 ---
-        await addDoc(collection(db, `users/${auth.currentUser.uid}/accounts`), {
+        await addDoc(collection(db, `books/${currentBookId}/accounts`), {
           ...dataToSave,
           scope: 'private',
           currency: 'JPY',
@@ -184,9 +184,9 @@ export default function AccountManageScreen() {
           text: actionName,
           style: newStatus ? 'destructive' : 'default',
           onPress: async () => {
-            if (!auth.currentUser || !editingAccount) return;
+            if (!auth.currentUser || !editingAccount || !currentBookId) return;
             try {
-              const ref = doc(db, `users/${auth.currentUser.uid}/accounts`, editingAccount.id);
+              const ref = doc(db, `books/${currentBookId}/accounts`, editingAccount.id);
               await updateDoc(ref, {
                 isArchived: newStatus
               });

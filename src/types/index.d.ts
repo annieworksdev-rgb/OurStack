@@ -59,16 +59,41 @@ export type FundingSource = 'shared_fund' | 'private_fund';
 // ==========================================
 
 /**
+ * 家計簿（Book）
+ * これがデータの「親」になります。
+ * 1つのBookの中に、Category, Account, Transaction がぶら下がります。
+ */
+export interface Book {
+  id: ID;
+  name: string;          // "鈴木家・共有", "夫のへそくり"
+  ownerId: ID;           // 作成者
+  members: {             // 参加メンバーと役割
+    [userId: string]: UserRole; 
+  };
+  currency: string;      // "JPY"
+  createdAt: Timestamp;
+}
+
+/**
  * ユーザー情報
  */
 export interface User {
   uid: ID;
-  displayName: string;
   email?: string;
+  displayName: string;
   photoURL?: string;
-  role: UserRole;        // 親か子供か
-  familyId: ID;          // 所属する家族グループID
-  pushToken?: string;    // 通知用トークン
+  
+  // ★ここが重要：参加している家計簿リスト
+  // キーはbookId, 値はメタデータ（将来的に並び順や表示名カスタムなど）
+  joinedBooks: {
+    [bookId: string]: {
+      role: UserRole;
+      joinedAt: Timestamp;
+    }
+  };
+
+  // デフォルトで開く家計簿ID
+  defaultBookId?: ID;
 }
 
 /**
