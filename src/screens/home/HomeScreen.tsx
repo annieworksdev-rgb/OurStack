@@ -28,7 +28,7 @@ LocaleConfig.defaultLocale = 'jp';
 type ViewMode = 'daily' | 'calendar' | 'summary' | 'assets';
 
 export default function HomeScreen({ navigation }: any) {
-  const { accounts, categories } = useMasterData();
+  const { accounts, categories, currentBookId } = useMasterData();
   const colors = useThemeColor();
   
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
@@ -71,12 +71,12 @@ export default function HomeScreen({ navigation }: any) {
   // --- loadData (日次・カレンダー・サマリー用) ---
   const loadData = async () => {
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user || !currentBookId) return;
     setLoading(true);
     try {
       const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
       const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59);
-      const transRef = collection(db, `users/${user.uid}/transactions`);
+      const transRef = collection(db, `books/${currentBookId}/transactions`);
       const qMonth = query(transRef, where('date', '>=', startOfMonth), where('date', '<=', endOfMonth), orderBy('date', 'desc'));
       const snapshot = await getDocs(qMonth);
       const monthList = snapshot.docs.map(doc => {
@@ -96,13 +96,20 @@ export default function HomeScreen({ navigation }: any) {
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
-  useFocusEffect(useCallback(() => { loadData(); }, [currentMonth]));
+  useFocusEffect(useCallback(() => { loadData(); }, [currentMonth, currentBookId]));
+  useFocusEffect(
+    useCallback(() => {
+      if (viewMode === 'assets') {
+        loadAssetTrends();
+      }
+    }, [viewMode, currentMonth, currentBookId])
+  );
 
   // --- 資産推移データの読み込み (Assetsモード用・1ヶ月単位) ---
   const loadAssetTrends = async () => {
     // ※月が変わるたびに計算しなおす必要があるのでキャッシュ判定は外す
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user || !currentBookId) return;
     setLoadingAssets(true);
 
     try {
@@ -118,7 +125,7 @@ export default function HomeScreen({ navigation }: any) {
         return;
       }
 
-      const transRef = collection(db, `users/${user.uid}/transactions`);
+      const transRef = collection(db, `books/${currentBookId}/transactions`);
       const q = query(
         transRef,
         where('date', '>=', startOfMonth), // 選択月の初日から
